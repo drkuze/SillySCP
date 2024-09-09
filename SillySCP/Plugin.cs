@@ -58,23 +58,48 @@ namespace SillySCP
             await Client.LogoutAsync();
         }
 
+        public Color ConvertHexToColor(string hex)
+        {
+            hex = hex.Replace("#", string.Empty);
+
+            byte r = Convert.ToByte(hex.Substring(0, 2), 16);
+            byte g = Convert.ToByte(hex.Substring(2, 2), 16);
+            byte b = Convert.ToByte(hex.Substring(4, 2), 16);
+
+            return new Color(r, g, b);
+        }
+
         public void SetStatus()
         {
             string players = "";
-            var textChannel = GetChannel(1279544677334253610);
+            var textChannel = GetChannel(Instance.Config.ChannelId);
             var playerList = Player.List;
+
             foreach (var player in playerList)
             {
                 players += "- " + player.Nickname + "\n";
             }
+
             var embedBuilder = new EmbedBuilder()
-                .WithTitle("Silly SCP Member List")
-                .WithColor(Color.Blue)
-                .WithDescription(players == "" ? "No players online" : players);
-            SetMessage(textChannel, 1280910252325339311, embedBuilder.Build());
+                .WithTitle(Instance.Config.EmbedTitle)
+                .WithColor(ConvertHexToColor(Instance.Config.EmbedColor))
+                .WithDescription(players == "" ? Instance.Config.NoPlayersOnlineText : players);
+
+            if (!string.IsNullOrEmpty(Instance.Config.ImageUrl))
+            {
+                embedBuilder.WithImageUrl(Instance.Config.ImageUrl);
+            }
+
+            if (!string.IsNullOrEmpty(Instance.Config.ThumbnailUrl))
+            {
+                embedBuilder.WithThumbnailUrl(Instance.Config.ThumbnailUrl);
+            }
+
+            SetMessage(textChannel, Instance.Config.MessageId, embedBuilder.Build());
             SetCustomStatus();
         }
-        
+
+
         private SocketTextChannel GetChannel(ulong id)
         {
             var channel = Client.GetChannel(id);
@@ -110,7 +135,9 @@ namespace SillySCP
 
         private void SetCustomStatus()
         {
-            var status = Server.PlayerCount + "/30 players active";
+            var playerLimit = Instance.Config.PlayerLimit;
+            var status = Server.PlayerCount + "/" + playerLimit;
+
             try
             {
                 Client.SetCustomStatusAsync(status).GetAwaiter().GetResult();
@@ -119,11 +146,10 @@ namespace SillySCP
             catch (Exception error)
             {
                 PluginAPI.Core.Log.Error(error.ToString());
-                if (statusUpdating == false)
+                if (!statusUpdating)
                 {
                     statusUpdating = true;
-                    Task.Delay(5);
-                    SetCustomStatus();
+                    Task.Delay(5).ContinueWith(_ => SetCustomStatus());
                 }
             }
         }
